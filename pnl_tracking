@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>P&L Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --paper:#F7F6F2; --card:#FFFFFF; --ink:#1C1F1D; --ink-soft:#5B6259; --line:#DDD9CD;
+    --blue:#1D5DA6; --blue-bg:#E6F0FA;
+    --amber:#9C6B0B; --amber-bg:#FAF0DC;
+    --green:#1E6E45; --green-bg:#E7F1EA;
+    --red:#A8402F; --red-bg:#F5E9E5;
+    --accent:#3C5D48;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Sarabun,Tahoma,sans-serif;}
+  .screen{display:none;min-height:100vh;padding:20px 16px 60px;}
+  .screen.active{display:block;}
+  .wrap{max-width:480px;margin:0 auto;}
+  h1{font-size:20px;font-weight:600;margin:0;}
+  .icon-btn{
+    width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
+    background:var(--card);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-soft);
+  }
+  .icon-btn:active{transform:scale(0.95);}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:6px;}
+  input[type=date],input[type=number],input[type=password],input[type=text]{
+    width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;
+    font-size:16px;background:var(--paper);color:var(--ink);margin-bottom:16px;
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+  .cat-btn{
+    border-radius:12px;border:1.5px solid transparent;padding:18px 8px;font-size:15px;
+    font-weight:600;cursor:pointer;text-align:center;
+  }
+  .cat-btn i{display:block;font-size:22px;margin-bottom:6px;}
+  .cat-btn.deposit{background:var(--blue-bg);color:var(--blue);}
+  .cat-btn.withdraw{background:var(--amber-bg);color:var(--amber);}
+  .cat-btn.profit{background:var(--green-bg);color:var(--green);}
+  .cat-btn.loss{background:var(--red-bg);color:var(--red);}
+  .cat-btn.selected{border-color:currentColor;}
+  button.primary{
+    width:100%;padding:14px;background:var(--ink);color:#fff;border:none;border-radius:10px;
+    font-size:16px;font-weight:600;cursor:pointer;
+  }
+  button.primary:active{transform:scale(0.98);}
+  button.secondary{
+    width:100%;padding:12px;background:transparent;color:var(--ink-soft);border:1px solid var(--line);
+    border-radius:10px;font-size:14px;cursor:pointer;
+  }
+  .balance-strip{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;}
+  .balance-strip .label{font-size:13px;color:var(--ink-soft);}
+  .balance-strip .value{font-size:26px;font-weight:600;}
+  .recent-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .recent-item:last-child{border-bottom:none;}
+  .tag{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;}
+  .tag.deposit{background:var(--blue-bg);color:var(--blue);}
+  .tag.withdraw{background:var(--amber-bg);color:var(--amber);}
+  .tag.profit{background:var(--green-bg);color:var(--green);}
+  .tag.loss{background:var(--red-bg);color:var(--red);}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block;margin-left:6px;}
+  .sync-dot.ok{background:var(--green);}
+  .sync-dot.err{background:var(--red);}
+
+  /* dashboard (english) */
+  #view-dashboard, #view-lock{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .stat{background:var(--paper);border-radius:10px;padding:12px;}
+  .stat .k{font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
+  .stat .v{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .stat .v.gain{color:var(--green);}
+  .stat .v.loss{color:var(--red);}
+  .section-title{font-size:13px;color:var(--ink-soft);margin:0 0 10px;text-transform:none;}
+  .roll-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .lock-wrap{display:flex;align-items:center;justify-content:center;min-height:80vh;}
+  .lock-card{max-width:340px;width:100%;text-align:center;}
+  .error-text{color:var(--red);font-size:13px;margin:-10px 0 14px;}
+  .chart-wrap{position:relative;height:180px;margin-bottom:6px;}
+
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(28,31,29,0.5);
+    align-items:center;justify-content:center;padding:20px;z-index:100;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal-card{background:var(--card);border-radius:16px;padding:20px;max-width:340px;width:100%;}
+  .modal-title{font-size:17px;font-weight:600;margin-bottom:14px;}
+  .modal-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:14px;color:var(--ink-soft);border-bottom:1px solid var(--line);}
+  .modal-row:last-of-type{border-bottom:none;}
+  .modal-value{font-weight:600;color:var(--ink);}
+  .modal-tag{font-weight:600;padding:2px 10px;border-radius:20px;font-size:13px;}
+</style>
+</head>
+<body>
+
+<!-- PAGE 1: LOG (THAI) -->
+<div class="screen active" id="view-log">
+  <div class="wrap">
+    <div class="topbar">
+      <h1>บันทึกการเงิน</h1>
+      <button class="icon-btn" id="toLock" aria-label="dashboard"><i class="ti ti-chart-bar"></i></button>
+    </div>
+
+    <div class="card">
+      <div class="balance-strip">
+        <span class="label">ยอดคงเหลือ</span>
+        <span class="value" id="balanceValue">฿0.00</span>
+      </div>
+
+      <label for="startBalance">ยอดเริ่มต้น</label>
+      <input type="number" id="startBalance" step="0.01" placeholder="0.00" inputmode="decimal">
+
+      <label for="entryDate">วันที่</label>
+      <input type="date" id="entryDate">
+
+      <label>ประเภท</label>
+      <div class="cat-grid">
+        <button class="cat-btn deposit" data-type="deposit"><i class="ti ti-arrow-down-circle"></i>เติมเงิน</button>
+        <button class="cat-btn withdraw" data-type="withdraw"><i class="ti ti-arrow-up-circle"></i>ถอนเงิน</button>
+        <button class="cat-btn profit" data-type="profit"><i class="ti ti-trending-up"></i>กำไร</button>
+        <button class="cat-btn loss" data-type="loss"><i class="ti ti-trending-down"></i>ขาดทุน</button>
+      </div>
+
+      <label for="entryAmount">จำนวนเงิน</label>
+      <input type="number" id="entryAmount" step="0.01" placeholder="0.00" inputmode="decimal">
+
+      <button class="primary" id="saveBtn">บันทึก</button>
+      <div id="storageWarning" style="display:none;font-size:12px;color:var(--red);margin-top:10px;text-align:center;">
+        บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">รายการล่าสุด</div>
+      <div id="recentList"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-card">
+      <div class="modal-title">ยืนยันรายการ</div>
+      <div class="modal-row"><span>ประเภท</span><span id="confirmType" class="modal-tag"></span></div>
+      <div class="modal-row"><span>จำนวนเงิน</span><span id="confirmAmount" class="modal-value"></span></div>
+      <div class="modal-row"><span>ยอดคงเหลือหลังทำรายการ</span><span id="confirmBalance" class="modal-value"></span></div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="secondary" id="confirmCancel">แก้ไข</button>
+        <button class="primary" id="confirmOk">ยืนยัน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="genericModal">
+  <div class="modal-card">
+    <div class="modal-title" id="genericTitle"></div>
+    <p id="genericMessage" style="font-size:14px;color:var(--ink-soft);margin:0 0 16px;line-height:1.5;"></p>
+    <div style="display:flex;gap:10px;" id="genericButtons"></div>
+  </div>
+</div>
+
+<!-- PAGE 2a: LOCK (ENGLISH) -->
+<div class="screen" id="view-lock">
+  <div class="lock-wrap">
+    <div class="card lock-card">
+      <i class="ti ti-lock" style="font-size:28px;color:var(--ink-soft);margin-bottom:12px;display:block;"></i>
+      <div id="lockSetupBlock" style="display:none;">
+        <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Set a password to protect the dashboard.</p>
+        <input type="password" id="pwSetNew" placeholder="New password">
+        <input type="password" id="pwSetConfirm" placeholder="Confirm password">
+        <div class="error-text" id="pwSetError" style="display:none;"></div>
+        <button class="primary" id="pwSetBtn">Set password</button>
+      </div>
+      <div id="lockEnterBlock" style="display:none;">
+        <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Enter your password.</p>
+        <input type="password" id="pwEnter" placeholder="Password">
+        <div class="error-text" id="pwEnterError" style="display:none;"></div>
+        <button class="primary" id="pwEnterBtn">Unlock</button>
+      </div>
+      <button class="secondary" style="margin-top:10px;" id="lockBack">Back to log</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2b: DASHBOARD (ENGLISH) -->
+<div class="screen" id="view-dashboard">
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Dashboard</h1>
+      <button class="icon-btn" id="toLog" aria-label="back"><i class="ti ti-x"></i></button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Overview (all entries)</div>
+      <div class="stat-grid" id="momentsGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Performance</div>
+      <div class="stat-grid" id="perfGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Rolling stats</div>
+      <div class="roll-row" id="rollGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Equity curve</div>
+      <div class="chart-wrap"><canvas id="equityChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">P&amp;L by entry</div>
+      <div class="chart-wrap"><canvas id="pnlChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <button class="primary" id="exportBtn"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px;margin-right:6px;"></i>Export to Excel</button>
+      <label for="importFile" style="margin-top:14px;">Import from Excel (restore a previous backup)</label>
+      <input type="file" id="importFile" accept=".xlsx">
+      <div style="font-size:12px;color:var(--ink-soft);margin-top:10px;text-align:center;">Data is saved in this browser. Export regularly as a backup.</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Danger zone</div>
+      <button class="secondary" id="clearBtn" style="color:var(--red);border-color:var(--red);">Clear all data</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showAlert(message, title){
+  return new Promise(resolve=>{
+    document.getElementById('genericTitle').textContent = title;
+    document.getElementById('genericMessage').textContent = message;
+    const btnRow = document.getElementById('genericButtons');
+    btnRow.innerHTML = '';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'primary';
+    okBtn.style.flex = '1';
+    okBtn.textContent = title === 'แจ้งเตือน' ? 'ตกลง' : 'OK';
+    okBtn.addEventListener('click', ()=>{
+      document.getElementById('genericModal').classList.remove('active');
+      resolve();
+    });
+    btnRow.appendChild(okBtn);
+    document.getElementById('genericModal').classList.add('active');
+  });
+}
+
+function showConfirm(message, title, confirmLabel, cancelLabel){
+  return new Promise(resolve=>{
+    document.getElementById('genericTitle').textContent = title;
+    document.getElementById('genericMessage').textContent = message;
+    const btnRow = document.getElementById('genericButtons');
+    btnRow.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'secondary';
+    cancelBtn.style.flex = '1';
+    cancelBtn.textContent = cancelLabel;
+    const okBtn = document.createElement('button');
+    okBtn.className = 'primary';
+    okBtn.style.flex = '1';
+    okBtn.style.background = 'var(--red)';
+    okBtn.textContent = confirmLabel;
+    const close = (result)=>{
+      document.getElementById('genericModal').classList.remove('active');
+      resolve(result);
+    };
+    cancelBtn.addEventListener('click', ()=>close(false));
+    okBtn.addEventListener('click', ()=>close(true));
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(okBtn);
+    document.getElementById('genericModal').classList.add('active');
+  });
+}
+
+const T_KEY='pnl-trades', START_KEY='pnl-start-balance', PW_KEY='pnl-pw-hash';
+let trades=[], startBalance=0, pwHash=null;
+
+function sGet(k){ try{ const v = localStorage.getItem(k); return v; }catch(e){ return null; } }
+
+function sSet(k,v){
+  try{
+    localStorage.setItem(k,v);
+    setSyncWarning(false);
+    return true;
+  }catch(e){
+    console.error('storage set failed', e);
+    setSyncWarning(true);
+    return false;
+  }
+}
+
+function setSyncWarning(show){
+  const w = document.getElementById('storageWarning');
+  if(w) w.style.display = show ? 'block' : 'none';
+}
+
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+const fmtTHB = n => (n<0?'-':'') + '฿' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct = n => (n>=0?'+':'') + n.toFixed(2) + '%';
+
+async function loadAll(){
+  const t = await sGet(T_KEY); trades = t ? JSON.parse(t) : [];
+  const sb = await sGet(START_KEY); startBalance = sb ? parseFloat(sb) : 0;
+  pwHash = await sGet(PW_KEY);
+  document.getElementById('entryDate').valueAsDate = new Date();
+  document.getElementById('startBalance').value = startBalance || '';
+  renderLog();
+}
+
+document.getElementById('startBalance').addEventListener('change', async (e)=>{
+  const v = parseFloat(e.target.value);
+  startBalance = isNaN(v) ? 0 : v;
+  await sSet(START_KEY, String(startBalance));
+  renderLog();
+});
+
+function computeSeries(){
+  const sorted=[...trades].sort((a,b)=> a.date.localeCompare(b.date) || a.ts-b.ts);
+  let bal=startBalance;
+  return sorted.map(t=>{
+    const before=bal;
+    const isTrade = (t.type==='profit'||t.type==='loss');
+    const signed = t.type==='profit'?t.amount : t.type==='loss'?-t.amount : t.type==='deposit'?t.amount : -t.amount;
+    const pct = isTrade && before!==0 ? (signed/before)*100 : null;
+    bal += signed;
+    return {...t, signed, pct, balanceAfter: bal, isTrade};
+  });
+}
+
+function renderLog(){
+  const series = computeSeries();
+  const finalBal = series.length ? series[series.length-1].balanceAfter : startBalance;
+  document.getElementById('balanceValue').textContent = fmtTHB(finalBal);
+
+  const list = document.getElementById('recentList');
+  const recent = [...series].reverse().slice(0,5);
+  if(recent.length===0){
+    list.innerHTML = '<div style="color:var(--ink-soft);font-size:14px;text-align:center;padding:12px 0;">ยังไม่มีรายการ</div>';
+  } else {
+    const labels = {deposit:'เติมเงิน', withdraw:'ถอนเงิน', profit:'กำไร', loss:'ขาดทุน'};
+    list.innerHTML = recent.map(r=>`
+      <div class="recent-item">
+        <span><span class="tag ${r.type}">${labels[r.type]}</span> ${r.date}</span>
+        <span>${fmtTHB(r.signed)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+let selectedType = null;
+document.querySelectorAll('.cat-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedType = btn.dataset.type;
+  });
+});
+
+const typeLabels = {deposit:'เติมเงิน', withdraw:'ถอนเงิน', profit:'กำไร', loss:'ขาดทุน'};
+let pendingEntry = null;
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  const date = document.getElementById('entryDate').value;
+  const amount = parseFloat(document.getElementById('entryAmount').value);
+  if(!date || !selectedType || isNaN(amount) || amount<=0){
+    await showAlert('กรุณาเลือกวันที่ ประเภท และจำนวนเงินให้ถูกต้อง', 'แจ้งเตือน');
+    return;
+  }
+
+  const series = computeSeries();
+  const currentBalance = series.length ? series[series.length-1].balanceAfter : startBalance;
+  const signed = (selectedType==='profit'||selectedType==='deposit') ? amount : -amount;
+  const resultingBalance = currentBalance + signed;
+
+  if((selectedType==='withdraw' || selectedType==='loss') && resultingBalance < 0){
+    await showAlert('ไม่สามารถทำรายการนี้ได้ เนื่องจากจะทำให้ยอดคงเหลือติดลบ', 'แจ้งเตือน');
+    return;
+  }
+
+  pendingEntry = {date, type:selectedType, amount, resultingBalance};
+  document.getElementById('confirmType').textContent = typeLabels[selectedType];
+  document.getElementById('confirmType').className = 'modal-tag tag ' + selectedType;
+  document.getElementById('confirmAmount').textContent = fmtTHB(amount);
+  document.getElementById('confirmBalance').textContent = fmtTHB(resultingBalance);
+  document.getElementById('confirmModal').classList.add('active');
+});
+
+document.getElementById('confirmCancel').addEventListener('click', ()=>{
+  document.getElementById('confirmModal').classList.remove('active');
+  pendingEntry = null;
+});
+
+document.getElementById('confirmOk').addEventListener('click', async ()=>{
+  if(!pendingEntry) return;
+  const entry = {id: Date.now()+'-'+Math.random().toString(36).slice(2), date:pendingEntry.date, type:pendingEntry.type, amount:pendingEntry.amount, ts:Date.now()};
+  trades.push(entry);
+  await sSet(T_KEY, JSON.stringify(trades));
+  document.getElementById('entryAmount').value='';
+  document.getElementById('entryDate').valueAsDate = new Date();
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+  selectedType=null;
+  pendingEntry=null;
+  document.getElementById('confirmModal').classList.remove('active');
+  renderLog();
+});
+
+/* navigation */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+document.getElementById('toLock').addEventListener('click', async ()=>{
+  pwHash = await sGet(PW_KEY);
+  document.getElementById('lockSetupBlock').style.display = pwHash ? 'none' : 'block';
+  document.getElementById('lockEnterBlock').style.display = pwHash ? 'block' : 'none';
+  document.getElementById('pwSetError').style.display='none';
+  document.getElementById('pwEnterError').style.display='none';
+  showScreen('view-lock');
+});
+document.getElementById('lockBack').addEventListener('click', ()=> showScreen('view-log'));
+document.getElementById('toLog').addEventListener('click', ()=> showScreen('view-log'));
+
+document.getElementById('pwSetBtn').addEventListener('click', async ()=>{
+  const a=document.getElementById('pwSetNew').value, b=document.getElementById('pwSetConfirm').value;
+  const err=document.getElementById('pwSetError');
+  if(!a || a.length<4){ err.textContent='Password must be at least 4 characters.'; err.style.display='block'; return; }
+  if(a!==b){ err.textContent='Passwords do not match.'; err.style.display='block'; return; }
+  err.style.display='none';
+  pwHash = await sha256(a);
+  await sSet(PW_KEY, pwHash);
+  openDashboard();
+});
+document.getElementById('pwEnterBtn').addEventListener('click', async ()=>{
+  const v=document.getElementById('pwEnter').value;
+  const err=document.getElementById('pwEnterError');
+  const h=await sha256(v);
+  if(h!==pwHash){ err.textContent='Incorrect password.'; err.style.display='block'; return; }
+  err.style.display='none';
+  document.getElementById('pwEnter').value='';
+  openDashboard();
+});
+
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function stdev(arr,m){ const n=arr.length; if(n<2) return 0; return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/(n-1)); }
+function variance(arr,m){ const n=arr.length; if(n<2) return 0; return arr.reduce((a,b)=>a+(b-m)**2,0)/(n-1); }
+function skewness(arr,m,sd){ const n=arr.length; if(n<3||sd===0) return null; return (n/((n-1)*(n-2))) * arr.reduce((a,b)=>a+((b-m)/sd)**3,0); }
+function kurtosisExcess(arr,m,sd){ const n=arr.length; if(n<4||sd===0) return null;
+  const term1 = (n*(n+1))/((n-1)*(n-2)*(n-3));
+  const sum = arr.reduce((a,b)=>a+((b-m)/sd)**4,0);
+  const term2 = (3*(n-1)*(n-1))/((n-2)*(n-3));
+  return term1*sum - term2;
+}
+
+function rollingWindow(series, days){
+  if(series.length===0) return [];
+  const lastDate = new Date(series[series.length-1].date);
+  const cutoff = new Date(lastDate); cutoff.setDate(cutoff.getDate()-days);
+  return series.filter(r=> r.isTrade && new Date(r.date) > cutoff);
+}
+
+let equityChartRef=null, pnlChartRef=null;
+
+function openDashboard(){
+  const series = computeSeries();
+  const tradeRows = series.filter(r=>r.isTrade);
+  const pcts = tradeRows.map(r=>r.pct);
+  const n = pcts.length;
+
+  const momentsGrid = document.getElementById('momentsGrid');
+  if(n===0){
+    momentsGrid.innerHTML = `<div class="stat" style="grid-column:1/-1;"><div class="k">no data</div><div class="v">log a profit or loss entry first</div></div>`;
+  } else {
+    const m = mean(pcts), v = variance(pcts,m), sd = stdev(pcts,m);
+    const sk = skewness(pcts,m,sd), ku = kurtosisExcess(pcts,m,sd);
+    momentsGrid.innerHTML = [
+      ['Mean return', fmtPct(m), m>=0?'gain':'loss'],
+      ['Variance', v.toFixed(3), ''],
+      ['Std deviation', sd.toFixed(2)+'%', ''],
+      ['Skewness', sk===null?'n/a (need 3+)':sk.toFixed(2), ''],
+      ['Excess kurtosis', ku===null?'n/a (need 4+)':ku.toFixed(2), ''],
+      ['Entries', n, ''],
+    ].map(([k,v,c])=>`<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
+  }
+
+  const perfGrid = document.getElementById('perfGrid');
+  if(n===0){
+    perfGrid.innerHTML = `<div class="stat" style="grid-column:1/-1;"><div class="k">no data</div><div class="v">-</div></div>`;
+  } else {
+    const wins = tradeRows.filter(r=>r.signed>0);
+    const losses = tradeRows.filter(r=>r.signed<0);
+    const winRate = (wins.length/n)*100;
+    const avgWin = wins.length ? wins.reduce((a,b)=>a+b.signed,0)/wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((a,b)=>a+b.signed,0)/losses.length : 0;
+    const wl = avgLoss!==0 ? Math.abs(avgWin/avgLoss) : null;
+    perfGrid.innerHTML = [
+      ['Win rate', winRate.toFixed(1)+'%', ''],
+      ['Win/loss ratio', wl===null?'n/a':wl.toFixed(2), ''],
+      ['Avg win', fmtTHB(avgWin), 'gain'],
+      ['Avg loss', fmtTHB(avgLoss), 'loss'],
+    ].map(([k,v,c])=>`<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
+  }
+
+  const rollGrid = document.getElementById('rollGrid');
+  [7,30].forEach((days,i)=>{
+    const w = rollingWindow(series, days);
+    const wp = w.map(r=>r.pct);
+    const label = days===7 ? 'Last 7 days' : 'Last 30 days';
+    const cell = document.createElement('div');
+    cell.className='stat';
+    if(wp.length===0){
+      cell.innerHTML = `<div class="k">${label}</div><div class="v">no data</div>`;
+    } else {
+      const m = mean(wp);
+      cell.innerHTML = `<div class="k">${label}</div><div class="v ${m>=0?'gain':'loss'}">${fmtPct(m)}</div><div class="k" style="margin-top:4px;">${wp.length} entries</div>`;
+    }
+    if(i===0) rollGrid.innerHTML='';
+    rollGrid.appendChild(cell);
+  });
+
+  const eqLabels = series.map(r=>r.date);
+  const eqData = series.map(r=>r.balanceAfter);
+  if(equityChartRef) equityChartRef.destroy();
+  equityChartRef = new Chart(document.getElementById('equityChart'), {
+    type:'line',
+    data:{ labels:eqLabels, datasets:[{ data:eqData, borderColor:'#3C5D48', backgroundColor:'rgba(60,93,72,0.08)', fill:true, tension:0.15, pointRadius:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{ticks:{callback:v=>'฿'+v}} } }
+  });
+
+  const pnlLabels = tradeRows.map(r=>r.date);
+  const pnlData = tradeRows.map(r=>r.signed);
+  if(pnlChartRef) pnlChartRef.destroy();
+  pnlChartRef = new Chart(document.getElementById('pnlChart'), {
+    type:'bar',
+    data:{ labels:pnlLabels, datasets:[{ data:pnlData, backgroundColor: pnlData.map(v=>v>=0?'#1E6E45':'#A8402F') }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{ticks:{callback:v=>'฿'+v}} } }
+  });
+
+  showScreen('view-dashboard');
+}
+
+function buildWorkbook(){
+  const series = computeSeries();
+  const rows = series.map(r=>({
+    Date:r.date, Type:r.type, Amount:r.amount, 'Signed amount':r.signed,
+    'Balance after':r.balanceAfter, '% return':r.pct===null?'':r.pct.toFixed(2)
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Trades');
+  return wb;
+}
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const wb = buildWorkbook();
+  XLSX.writeFile(wb, 'day-trade-pnl.xlsx');
+});
+
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      const restored = rows.map(r=>({
+        id: Date.now()+'-'+Math.random().toString(36).slice(2),
+        date: String(r['Date']),
+        type: r['Type'],
+        amount: parseFloat(r['Amount']),
+        ts: Date.now()
+      })).filter(r=> r.date && r.type && !isNaN(r.amount));
+      if(restored.length===0){ showAlert('No valid rows found in this file.', 'Import failed'); return; }
+      trades = restored;
+      await showAlert('Restored ' + restored.length + ' entries for this session.', 'Import successful');
+      openDashboard();
+    }catch(err){
+      console.error('import failed', err);
+      showAlert('Could not read this file. Make sure it is an export from this app.', 'Import failed');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById('clearBtn').addEventListener('click', async ()=>{
+  const first = await showConfirm('This deletes every entry, your starting balance, and your password. This cannot be undone.', 'Clear all data?', 'Continue', 'Cancel');
+  if(!first) return;
+  const second = await showConfirm('Are you sure? Export a backup first if you want to keep this data.', 'Final confirmation', 'Delete everything', 'Cancel');
+  if(!second) return;
+  trades = [];
+  startBalance = 0;
+  pwHash = null;
+  localStorage.removeItem(T_KEY);
+  localStorage.removeItem(START_KEY);
+  localStorage.removeItem(PW_KEY);
+  await showAlert('All data cleared.', 'Done');
+  document.getElementById('startBalance').value = '';
+  renderLog();
+  showScreen('view-log');
+});
+
+loadAll();
+</script>
+</body>
+</html>
